@@ -6,12 +6,16 @@ from io import BytesIO
 from PIL import Image
 import tensorflow as tf
 
+# Create the FastAPI app
 app = FastAPI()
 
+# Allow requests from the frontend
 origins = [
     "http://localhost",
     "http://localhost:3000",
 ]
+
+# Add the CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -20,17 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MODEL = tf.keras.models.load_model("./models/SGD-0.01-0.99-20epochs.keras")
 def class_names_txt(filepath):
-    """
+    '''	
     Read a text file and save each line as an element in a list.
-
-    Args:
-    - filepath (str): The path to the text file.
-
-    Returns:
-    - lines (list): A list containing each line of the text file as an element.
-    """
+    '''
     names = []
     with open(filepath, 'r') as file:
         for line in file:
@@ -41,24 +38,32 @@ def class_names_txt(filepath):
             names.append(cleaned_line)
     return names
 
-filepath = "Dataset/breeds.txt"  
+# Define the path to the breeds.txt file
+filepath = "./Dataset/breeds.txt"  
+# Load the model
 CLASS_NAMES = class_names_txt(filepath) 
+MODEL = tf.keras.models.load_model("./models/SGD-0.01-0.99-20epochs.keras")
 
-
-@app.get("/ping")
-async def ping():
-    return {"ping": "pong"}
 
 def read_file_as_image(data) -> np.ndarray:
+    '''
+    Read the image file as a numpy array
+    '''
     image = Image.open(BytesIO(data))
-    return np.array(image)
+    image = image.resize((256, 256))
+
+    return np.array(image) / 255.0
+
 
 @app.post("/predict")
 async def predict(
     file: UploadFile = File(...)
 ):
+    '''
+    Predicts the class of the image
+    '''
+    
     image = read_file_as_image(await file.read())
-    image = tf.image.resize(image, [256, 256])
     img_batch = np.expand_dims(image, axis=0)
     prediction = MODEL.predict(img_batch)
     predicted_class = CLASS_NAMES[np.argmax(prediction[0])]
